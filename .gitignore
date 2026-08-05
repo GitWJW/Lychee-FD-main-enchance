@@ -1,0 +1,17 @@
+.env
+model_presets.local.json
+runtime_logs/
+realtime_aligned_audio/
+frontend/node_modules/
+frontend/dist/
+frontend/public/clone/default_female.wav
+frontend/public/clone/default_male.wav
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+HUGGINGFACE_README.md
+DOCKER_PUBLISH.md
+reference.md
+docs/vllm_memory_growth_analysis.md
+tools/
