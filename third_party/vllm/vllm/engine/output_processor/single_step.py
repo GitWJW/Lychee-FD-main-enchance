@@ -15,6 +15,31 @@ from vllm.utils import Counter
 
 logger = init_logger(__name__)
 
+def _append_multihead_side_tokens(seq_group: SequenceGroup,
+                                  output: CompletionSequenceGroupOutput
+                                  ) -> None:
+    mh_state = seq_group.multihead_request_state
+    if mh_state is None:
+        return
+
+    if output.stoken_token_ids is not None:
+        step_stoken = [int(t) for t in output.stoken_token_ids]
+        if mh_state.stoken_input_ids is None:
+            mh_state.stoken_input_ids = []
+        mh_state.stoken_input_ids.extend(step_stoken)
+        # Keep per-step deltas so RequestOutput can avoid copying full history.
+        mh_state.last_stoken_token_ids = step_stoken
+    else:
+        mh_state.last_stoken_token_ids = None
+
+    if output.control_token_ids is not None:
+        step_control = [int(t) for t in output.control_token_ids]
+        if mh_state.control_input_ids is None:
+            mh_state.control_input_ids = []
+        mh_state.control_input_ids.extend(step_control)
+        mh_state.last_control_token_ids = step_control
+    else:
+        mh_state.last_control_token_ids = None
 
 def single_step_process_prompt_logprob(
         sg_output_proc: SequenceGroupOutputProcessor, seq_group: SequenceGroup,
@@ -114,6 +139,9 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
     def _process_sequence_group_outputs(self, seq_group: SequenceGroup,
                                         outputs: SequenceGroupOutput,
                                         is_async: bool) -> None:
+        assert isinstance(outputs, CompletionSequenceGroupOutput)
+        _append_multihead_side_tokens(seq_group, outputs)
+
         sampling_params = seq_group.sampling_params
 
         sample = outputs.samples[0]

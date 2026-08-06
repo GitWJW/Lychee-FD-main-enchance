@@ -21,6 +21,30 @@ from vllm.utils import Counter
 
 logger = init_logger(__name__)
 
+def _append_multihead_side_tokens(seq_group: SequenceGroup,
+                                  output: CompletionSequenceGroupOutput
+                                  ) -> None:
+    mh_state = seq_group.multihead_request_state
+    if mh_state is None:
+        return
+
+    if output.stoken_token_ids is not None:
+        step_stoken = [int(t) for t in output.stoken_token_ids]
+        if mh_state.stoken_input_ids is None:
+            mh_state.stoken_input_ids = []
+        mh_state.stoken_input_ids.extend(step_stoken)
+        mh_state.last_stoken_token_ids = step_stoken
+    else:
+        mh_state.last_stoken_token_ids = None
+
+    if output.control_token_ids is not None:
+        step_control = [int(t) for t in output.control_token_ids]
+        if mh_state.control_input_ids is None:
+            mh_state.control_input_ids = []
+        mh_state.control_input_ids.extend(step_control)
+        mh_state.last_control_token_ids = step_control
+    else:
+        mh_state.last_control_token_ids = None
 
 class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
     """SequenceGroupOutputProcessor which handles logic related to
@@ -117,6 +141,8 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
             seq_id == output.samples[0].parent_seq_id
             for output in compl_outputs
         ])
+        for output in compl_outputs:
+            _append_multihead_side_tokens(sequence_group, output)
 
         if is_async:
             # Async case: We process tokens one by one. Here, we know the token
